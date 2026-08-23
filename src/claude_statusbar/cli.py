@@ -306,8 +306,27 @@ def _run_hud_subcommand(rest):
     return 2
 
 
+def _force_utf8_stdout():
+    """Re-encode stdout as UTF-8 when the platform picked something narrower.
+
+    Claude Code's statusLine hook hands `cs render` a piped stdout, which
+    on Windows defaults to the legacy ANSI code page (usually cp1252).
+    The first glyph outside that page (⏰) aborts the render with
+    UnicodeEncodeError. Exit 1, blank bar. Claude Code consumes UTF-8,
+    so force it. This runs on the `cs render` fast path, so it must stay
+    import-free."""
+    try:
+        if (sys.stdout.encoding or "").lower().replace("-", "") != "utf8":
+            sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError, OSError):
+        # Leave streams without .reconfigure (test doubles, frozen envs)
+        # alone and let the write succeed or fail on its own.
+        pass
+
+
 def main():
     """Main CLI entry point"""
+    _force_utf8_stdout()
     # Render fast-path: `cs render` is what Claude Code calls 60×/min when
     # the user has switched to daemon mode (`cs setup --fast`). It must
     # avoid heavy imports — argparse + the rest of the CLI only loads on

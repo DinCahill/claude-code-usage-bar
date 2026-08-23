@@ -196,3 +196,23 @@ def test_bare_project_flag_requires_setup(monkeypatch, capsys):
     assert exc.value.code == 2
     err = capsys.readouterr().err
     assert "--project" in err and "--setup" in err
+
+
+def test_force_utf8_stdout_reencodes_legacy_stream(monkeypatch):
+    """The helper re-encodes a cp1252 piped stdout (what the Windows
+    statusLine hook provides) to UTF-8, so the bar's glyphs (⏰) survive."""
+    import io
+    stream = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    monkeypatch.setattr(sys, "stdout", stream)
+    cli._force_utf8_stdout()
+    assert sys.stdout.encoding.lower().replace("-", "") == "utf8"
+    sys.stdout.write("\u23f0")  # must not raise
+
+
+def test_force_utf8_stdout_tolerates_non_reconfigurable_stream(monkeypatch):
+    """On a stream without .reconfigure (test doubles, exotic runners) the
+    helper is a silent no-op and rendering proceeds."""
+    import io
+    stream = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", stream)
+    cli._force_utf8_stdout()  # must not raise
