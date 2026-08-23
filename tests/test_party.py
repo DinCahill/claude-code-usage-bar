@@ -606,3 +606,19 @@ def test_missing_transcript_is_not_attached(tmp_path, monkeypatch):
     assert party.session_is_attached("/nope/nothing.jsonl", "sid") is False
     assert party.session_is_attached("", "sid") is False
     assert party.session_is_attached("/tmp/x", "") is False
+
+
+def test_pid_alive_dispatches_to_windows_probe_on_nt(monkeypatch):
+    # os.kill must NEVER run on nt. Sig 0 is CTRL_C_EVENT there, so the
+    # "liveness probe" broadcasts Ctrl+C to the whole console and kills the
+    # host session (e.g. the Claude Code instance driving the statusline).
+    import pytest
+
+    import claude_statusbar.daemon as daemon
+    import claude_statusbar.party as party
+
+    monkeypatch.setattr(party.os, "name", "nt")
+    monkeypatch.setattr(party.os, "kill",
+                        lambda *a: pytest.fail("os.kill called on nt"))
+    monkeypatch.setattr(daemon, "_is_alive_windows", lambda pid: True)
+    assert party._pid_alive(4242) is True

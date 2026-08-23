@@ -157,12 +157,24 @@ def _int_or_none(value: Any) -> Optional[int]:
 
 
 def _pid_alive(pid: Optional[int]) -> bool:
+    """Liveness of the listener heartbeat's pid.
+
+    POSIX: kill(pid, 0), the classic no-op probe. Windows: sig 0 is
+    CTRL_C_EVENT, so os.kill(pid, 0) broadcasts Ctrl+C to the whole
+    console and kills, among others, the Claude Code session the bar
+    renders for. Dispatch to the daemon's OpenProcess probe there
+    instead. The import is lazy so a status with no listener pid never
+    pays daemon.py's import cost."""
     if pid is None or pid <= 0:
         return False
+    if os.name == "nt":
+        from .daemon import _is_alive_windows
+        return _is_alive_windows(pid)
     try:
         os.kill(pid, 0)
         return True
     except PermissionError:
+        # EPERM: the process exists but belongs to someone else.
         return True
     except OSError:
         return False
